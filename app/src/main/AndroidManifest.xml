@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Emergency alerts -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Lets the user optionally allow SAHAYAT alerts through Do Not Disturb (user must grant in system settings) -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- Bluetooth link to the SAHAYAT band (Patient mode) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <!-- Location: BLE scanning on Android 11 and older, and the patient's position in SOS alerts -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Backup SMS from the patient's phone SIM -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- Caregiver phone: SOS text from the patient's phone rings the alarm without internet -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Caregiver phone: live listener for SOS alerts (replaces server push on the free plan) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <!-- QR pairing (legacy) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <application
+        android:name=".SahayatApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Sahayat"
+        tools:targetApi="35">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Sahayat.Splash"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Deep link: sahayat://sos/{eventId}?patientId=... -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sahayat" android:host="sos" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".emergency.SahayatMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".emergency.EmergencyAlertService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <receiver
+            android:name=".emergency.AlertActionReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".ble.BandLinkService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location" />
+
+        <service
+            android:name=".emergency.AlertWatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Receives seizure SOS alerts for a patient in real time" />
+        </service>
+
+        <receiver
+            android:name=".emergency.SosSmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".ble.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="sahayat_general" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_sahayat" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/accent" />
+    </application>
+</manifest>

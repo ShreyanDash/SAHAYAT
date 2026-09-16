@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Sahayat" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg_deep</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/bg_deep</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorAccent">@color/accent</item>
+    </style>
+
+    <style name="Theme.Sahayat.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/bg_deep</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Sahayat</item>
+    </style>
+</resources>

@@ -1,0 +1,165 @@
+rules_version = '2';
+
+// SAHAYAT access model (free Spark plan — no Cloud Functions, so these rules are the server).
+//  - users/{uid}: only that user.
+//  - patients/{pid}: caregivers listed in caregiverUids. New caregivers join with a valid invite code.
+//  - devices/{id}: readable by the patient's caregivers; status written only by the linked patient phone.
+//  - invites/{code}: created by a caregiver; readable only by someone who already knows the code.
+//  - events/{id}: created by a caregiver of the patient (the patient's phone); status changes must follow
+//    the SOS state machine.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function patient(pid) { return get(/databases/$(database)/documents/patients/$(pid)); }
+    function isCaregiverOf(pid) {
+      return signedIn()
+        && pid is string
+        && exists(/databases/$(database)/documents/patients/$(pid))
+        && uid() in patient(pid).data.caregiverUids;
+    }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    match /users/{userId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId
+        && !request.resource.data.keys().hasAny(['role_admin']);
+      allow delete: if false;
+
+      match /fcmTokens/{token} {
+        allow read, write: if signedIn() && uid() == userId;
+      }
+    }
+
+    match /patients/{pid} {
+      allow read: if isCaregiverOf(pid);
+
+      // The creator is the owner and the only caregiver; no band yet.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == uid()
+        && request.resource.data.caregiverUids == [uid()]
+        && !('deviceId' in request.resource.data)
+        && !('patientPhoneUid' in request.resource.data);
+
+      // 1) Caregivers edit profile / detection settings.
+      allow update: if isCaregiverOf(pid)
+        && !changed().hasAny(['ownerUid', 'caregiverUids', 'deviceId', 'patientPhoneUid', 'lastInvite']);
+
+      // 2) A caregiver links this phone as the band relay, or unlinks the band.
+      allow update: if isCaregiverOf(pid)
+        && changed().hasOnly(['deviceId', 'patientPhoneUid'])
+        && (
+          (request.resource.data.patientPhoneUid == uid() && request.resource.data.deviceId is string)
+          || (request.resource.data.patientPhoneUid == null && request.resource.data.deviceId == null)
+        );
+
+      // 3) Someone with a valid, unexpired invite code adds only themselves.
+      allow update: if signedIn()
+        && !(uid() in resource.data.caregiverUids)
+        && changed().hasOnly(['caregiverUids', 'lastInvite'])
+        && request.resource.data.caregiverUids == resource.data.caregiverUids.concat([uid()])
+        && validInvite(request.resource.data.lastInvite, pid);
+
+      allow delete: if false;
+
+      match /caregivers/{cid} {
+        allow read, write: if isCaregiverOf(pid);
+      }
+    }
+
+    function validInvite(code, pid) {
+      let path = /databases/$(database)/documents/invites/$(code);
+      return code is string
+        && exists(path)
+        && get(path).data.patientId == pid
+        && get(path).data.expiresAt > request.time;
+    }
+
+    match /invites/{code} {
+      // get only (by exact code) — listing is never allowed, so codes can't be enumerated.
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isCaregiverOf(request.resource.data.patientId)
+        && code.matches('^[A-Z2-9]{8}$')
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt < request.time + duration.value(25, 'h');
+      allow update, delete: if false;
+    }
+
+    match /devices/{deviceId} {
+      function devPatient(d) { return d.get('patientId', null); }
+
+      // Readable when it doesn't exist yet, when it's unlinked (so it can be paired again),
+      // or by the caregivers of the patient it's linked to.
+      allow read: if signedIn() && (resource == null
+        || devPatient(resource.data) == null
+        || isCaregiverOf(devPatient(resource.data)));
+
+      allow create: if deviceId.matches('^SAH-[A-Z0-9]{4,16}$')
+        && isCaregiverOf(request.resource.data.patientId)
+        && request.resource.data.relayUid == uid();
+
+      allow update: if signedIn()
+        // Only a caregiver of the current patient (or anyone, if the band is unlinked) may touch it…
+        && (devPatient(resource.data) == null || isCaregiverOf(devPatient(resource.data)))
+        // …only to link it to a patient they care for, or to unlink it…
+        && (devPatient(request.resource.data) == null || isCaregiverOf(devPatient(request.resource.data)))
+        // …and only the linked patient phone may write live status.
+        && (!changed().hasAny(['status', 'relaySeenAt'])
+            || request.resource.data.get('relayUid', null) == uid()
+            || request.resource.data.get('relayUid', null) == null);
+
+      allow delete: if false;
+    }
+
+    // --- SOS events --------------------------------------------------------------------------
+    function openStatus(s) { return s in ['ALERT_RECEIVED', 'ACTIVE']; }
+    function validMove(from, to) {
+      return (openStatus(from) && to in ['ACKNOWLEDGED', 'CANCELLED', 'ESCALATED'])
+        || (from == 'ESCALATED' && to in ['ACKNOWLEDGED', 'CANCELLED'])
+        || (from == 'ACKNOWLEDGED' && to == 'RESOLVED');
+    }
+
+    match /events/{eventId} {
+      // resource == null lets the patient phone check whether an alert was already posted (retries).
+      allow read: if signedIn() && (resource == null || uid() in resource.data.caregiverUids);
+
+      allow create: if signedIn()
+        && request.resource.data.reporterUid == uid()
+        && isCaregiverOf(request.resource.data.patientId)
+        && request.resource.data.caregiverUids == patient(request.resource.data.patientId).data.caregiverUids
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.alertType in ['SEIZURE_SUSPECTED', 'DEVICE_TEST'];
+
+      allow update: if signedIn()
+        && uid() in resource.data.caregiverUids
+        && !changed().hasAny(['patientId', 'caregiverUids', 'reporterUid', 'deviceId', 'alertType',
+                               'detectedAt', 'createdAt', 'escalateAt'])
+        && (
+          // A state-machine move.
+          (changed().hasAny(['status']) && validMove(resource.data.status, request.resource.data.status)
+            && (!changed().hasAny(['acknowledgedBy']) || request.resource.data.acknowledgedBy.uid == uid())
+            && (!changed().hasAny(['cancelledBy']) || request.resource.data.cancelledBy.uid == uid()))
+          // SMS result — only from the patient phone that posted the alert.
+          || (changed().hasOnly(['sms']) && resource.data.reporterUid == uid())
+          // Live location — only from the patient phone that posted the alert.
+          || (changed().hasOnly(['location', 'locationUpdatedAt']) && resource.data.reporterUid == uid()
+              && request.resource.data.location.lat is number && request.resource.data.location.lng is number)
+          // Notes after resolution.
+          || (changed().hasOnly(['notes', 'updatedAt']))
+        );
+
+      allow delete: if false;
+    }
+
+    // Legacy server-only collections (Cloud Functions version).
+    match /devices_private/{deviceId} {
+      allow read, write: if false;
+    }
+    match /rate_limits/{id} {
+      allow read, write: if false;
+    }
+  }
+}

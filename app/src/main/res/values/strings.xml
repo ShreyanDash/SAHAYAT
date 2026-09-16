@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-app UI text lives in ui/i18n/Strings.kt so the Language screen can switch instantly.
+         Only text used by background services (no Compose) is here. -->
+    <string name="app_name">SAHAYAT</string>
+
+    <string name="band_link_title">SAHAYAT band</string>
+    <string name="band_link_connecting">Connecting to the band over Bluetooth…</string>
+    <string name="band_link_connected">Connected · watching for alerts</string>
+    <string name="band_link_incompatible">Connected device is not the paired SAHAYAT band — open the app</string>
+    <string name="band_link_pending">Band raised an alert · 2-second cancel window…</string>
+    <string name="band_link_cancelled">Alert cancelled on the band · watching for alerts</string>
+    <string name="band_link_reconnecting">Band out of range · reconnecting…</string>
+    <string name="band_link_alert">Seizure alert from the band · texting and notifying caregivers…</string>
+    <string name="band_link_test_alert">TEST alert from the band · sending test to caregivers…</string>
+
+    <string name="band_alert_offline_title">Alert could not reach the internet</string>
+    <string name="band_alert_offline_sms">Backup SMS sent from this phone (%1$s). The app alert will be posted when the internet is back.</string>
+    <string name="band_alert_offline_nosms">No backup SMS went out (%1$s). The app alert will be posted when the internet is back — call a caregiver now.</string>
+    <string name="band_alert_local_title">Possible seizure detected</string>
+    <string name="band_alert_local_body">The SAHAYAT band detected a possible seizure%1$s. Please check on the patient.</string>
+    <string name="band_alert_rejected_title">Alert not accepted</string>
+    <string name="band_alert_rejected_body">This phone is no longer linked to the band. Open SAHAYAT and pair the band again.</string>
+
+    <string name="watch_title">SAHAYAT alerts</string>
+    <string name="watch_listening">Listening for SOS alerts</string>
+    <string name="watch_offline">No internet · SOS by SMS only</string>
+    <string name="alert_escalated_title">Alert escalated</string>
+    <string name="alert_escalated_body">Nobody has acknowledged the alert yet. Please respond now.</string>
+    <string name="band_offline_title">SAHAYAT band not reporting</string>
+    <string name="band_offline_body">No update from the band or the patient\'s phone for over 3 minutes. Alerts may not get through.</string>
+</resources>

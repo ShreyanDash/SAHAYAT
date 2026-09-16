@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+# Firebase client config is project-specific; keep it out of version control
+app/google-services.json
+backend/functions/node_modules/
+backend/functions/lib/
+backend/.firebaserc

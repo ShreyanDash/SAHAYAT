@@ -1,0 +1,48 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "patientId", "order": "ASCENDING" },
+        { "fieldPath": "caregiverUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "detectedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "patientId", "order": "ASCENDING" },
+        { "fieldPath": "caregiverUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "detectedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "escalateAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "devices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status.online", "order": "ASCENDING" },
+        { "fieldPath": "status.lastSeen", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "caregivers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "notifySms", "order": "ASCENDING" },
+        { "fieldPath": "priority", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
